@@ -1,0 +1,85 @@
+schema_version: 8
+experiment_id: dibo_cpu_smoke
+run_mode: synthetic
+seed: 42
+engine:
+  adapter: fake
+  version: synthetic
+  execution_mode: V1
+  model: synthetic-model
+  tokenizer: synthetic-tokenizer
+  model_revision: synthetic
+  dtype: float64
+  served_model_name: dibo-synthetic
+  host: 127.0.0.1
+  port: 18000
+  max_model_len: 8192
+  allocated_gpu_count: 1
+  allocated_gpu_uuids: [SYNTHETIC-GPU]
+  startup_timeout_s: 10
+  benchmark_timeout_s: 10
+workload:
+  request_file: data/requests/synthetic.jsonl
+  request_sha256: synthetic-request-hash
+  backend: fake
+  endpoint: /v1/chat/completions
+  streaming: true
+  num_prompts: 128
+  warmup_prompts: 32
+  request_rate: 4.0
+  max_concurrency: 64
+  burstiness: 1.0
+  output_len: 512
+  ignore_eos: true
+  chat_template_id: synthetic
+  prefix_profile: shared_prefix_30pct
+  required_success_rate: 1.0
+  ttft_slo_s: 1.0
+metrics:
+  adapter: fake
+  sampling_interval_s: 1.0
+  min_valid_samples: 3
+tuning:
+  initial_trials: 10
+  initial_probe_coefficient: 0.8
+  metric_top_k: 2
+  metric_top_k_min: 1
+  metric_top_k_max: 3
+  third_metric_ratio: 0.80
+  bo_rounds: 4
+  trials_per_bo_round: 3
+  max_total_trials: 22
+  coefficient_low: -1.0
+  coefficient_high: 1.0
+  candidate_pool_size: 2048
+  max_candidate_pools: 3
+  mc_samples: 128
+  acquisition: metric_loss_ei
+  acquisition_tie_tolerance: 0.000001
+  loss_tie_tolerance: 0.000001
+  g_counterfactual_beta: 1.0
+  g_counterfactual_grid_size: 64
+  time_limit_s: null
+models:
+  kernel: matern_5_2_ard
+  min_train_samples: 5
+  min_unique_configs: 3
+  historical_action_version_noise_multiplier: 2.0
+  cpu_threads: 1
+  dtype: float64
+llm:
+  transport: fake
+  model: synthetic-llm
+  api_key_env: DIBO_UNUSED_SYNTHETIC_KEY
+  llm_update_interval_trials: 3
+  timeout_s: 1
+  max_weight_change: 0.10
+  anchor_min_abs: 0.80
+  non_anchor_min_abs: 0.02
+  max_updated_cells: 5
+  max_updated_parameters_per_action: 2
+thresholds:
+  m01: {kind: upper, trigger: 0.90, target: 0.85, scale: 0.05}
+  m02: {kind: upper, trigger: 0.02, target: 0.01, scale: 0.01}
+  m04: {kind: upper, trigger: 8.0, target: 4.0, scale: 2.0}
+  m06: {kind: upper, trigger: 1.0, target: 1.0, scale: 0.10}

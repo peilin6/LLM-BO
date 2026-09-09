@@ -1,0 +1,9 @@
+{
+  "duration_s": 4.0,
+  "requests": [
+    {"request_id": "r1", "success": true, "output_tokens": 100, "ttft_s": 0.10},
+    {"request_id": "r2", "success": true, "output_tokens": 120, "ttft_s": 0.20},
+    {"request_id": "r3", "success": true, "output_tokens": 80, "ttft_s": 0.30},
+    {"request_id": "r4", "success": true, "output_tokens": 100, "ttft_s": 0.40}
+  ]
+}

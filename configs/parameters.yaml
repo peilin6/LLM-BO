@@ -1,0 +1,17 @@
+parameter_order: [p01, p02, p03, p04, p05, p06, p07, p08, p09, p10, p11, p12, p13, p14, p15]
+parameters:
+  - {parameter_id: p01, name: tensor_parallel_size, kind: ordered_choice, initial: MIN_FIT_TP, choices: [1, 2, 4, 8]}
+  - {parameter_id: p02, name: pipeline_parallel_size, kind: ordered_choice, initial: 1, choices: [1, 2, 4]}
+  - {parameter_id: p03, name: max_num_seqs, kind: int, initial: 128, low: 32, high: 1024, action_scale: 64, alignment: 1}
+  - {parameter_id: p04, name: max_num_batched_tokens, kind: int, initial: PROMPT_P95_OR_8192, low: 512, high: 32768, action_scale: 2048, alignment: 256}
+  - {parameter_id: p05, name: block_size, kind: ordered_choice, initial: 16, choices: [8, 16, 32]}
+  - {parameter_id: p06, name: gpu_memory_utilization, kind: float, initial: 0.90, low: 0.70, high: 0.98, action_scale: 0.04}
+  - {parameter_id: p07, name: swap_space, kind: float, initial: 4.0, low: 0.0, high: 16.0, action_scale: 2.0, unit: GiB_per_GPU}
+  - {parameter_id: p08, name: cpu_offload_gb, kind: float, initial: 2.0, low: 0.0, high: 16.0, action_scale: 2.0, unit: GiB_per_GPU}
+  - {parameter_id: p09, name: max_num_partial_prefills, kind: int, initial: 2, low: 1, high: 8, action_scale: 2, alignment: 1}
+  - {parameter_id: p10, name: max_long_partial_prefills, kind: int, initial: 1, low: 1, high: 8, action_scale: 1, alignment: 1}
+  - {parameter_id: p11, name: long_prefill_token_threshold, kind: int, initial: PROMPT_P75, low: 256, high: 8192, action_scale: 1024, alignment: 256}
+  - {parameter_id: p12, name: enable_chunked_prefill, kind: bool, initial: true}
+  - {parameter_id: p13, name: enable_prefix_caching, kind: bool, initial: FROM_REQUEST_PREFIX_PROFILE}
+  - {parameter_id: p14, name: disable_custom_all_reduce, kind: bool, initial: false}
+  - {parameter_id: p15, name: enforce_eager, kind: bool, initial: false}

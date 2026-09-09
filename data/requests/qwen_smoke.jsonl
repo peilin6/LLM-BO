@@ -1,0 +1,16 @@
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Explain in three sentences why batching can improve inference throughput."}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"List four practical causes of high time to first token in an LLM service."}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Compare prefix caching and KV cache block sizing."}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Write a short checklist for diagnosing request queue growth."}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"What does GPU memory utilization mean in an inference server?"}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Describe the tradeoff between concurrency and tail latency."}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Give an example of a workload that benefits from chunked prefill."}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Why should benchmark warmup requests be excluded from measurements?"}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Explain the difference between throughput and latency."}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Name useful metrics for monitoring an online text generation service."}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Describe why deterministic configuration hashes help experiments."}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"What can cause model server preemption events?"}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Explain why a failed experiment should still consume the attempt budget."}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Give two reasons to bind a local benchmark server to loopback only."}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Summarize Bayesian optimization for an expensive black-box system."}]}
+{"messages":[{"role":"system","content":"You are a concise technical assistant. Give accurate answers."},{"role":"user","content":"Why is it important to retain exact executed parameter values?"}]}

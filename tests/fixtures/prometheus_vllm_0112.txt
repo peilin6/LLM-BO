@@ -1,0 +1,8 @@
+# HELP vllm:kv_cache_usage_perc GPU KV-cache usage.
+# TYPE vllm:kv_cache_usage_perc gauge
+vllm:kv_cache_usage_perc{model_name="dibo-model"} 0.75
+vllm:kv_cache_usage_perc{model_name="other-model"} 0.99
+# TYPE vllm:num_requests_waiting gauge
+vllm:num_requests_waiting{model_name="dibo-model"} 3
+# TYPE vllm:num_preemptions_total counter
+vllm:num_preemptions_total{model_name="dibo-model"} 12
