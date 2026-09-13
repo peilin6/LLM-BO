@@ -33,6 +33,8 @@ class CompileEnvironment:
     supported_parameter_ids: tuple[str, ...] = PARAMETER_IDS
     model_context: str = ""
     workload_context: str = ""
+    execution_mode: str = ""
+    engine_version: str = ""
 
 
 def _decimal(value: float) -> Decimal:
@@ -94,6 +96,15 @@ def _validate_constraints(
         errors.append("p04 and p11 must be aligned to 256")
     if int(final_config["p05"]) not in environment.supported_block_sizes:
         errors.append("p05 is not supported by the current backend")
+    if environment.engine_version == "0.11.2":
+        if int(final_config["p09"]) != 1:
+            errors.append(
+                "p09 must equal 1 in vLLM 0.11.2 because concurrent partial prefill is unsupported"
+            )
+        if int(final_config["p10"]) != 1:
+            errors.append(
+                "p10 must equal 1 in vLLM 0.11.2 because concurrent partial prefill is unsupported"
+            )
     return errors
 
 

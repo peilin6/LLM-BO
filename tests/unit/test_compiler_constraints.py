@@ -76,6 +76,15 @@ def test_batch_and_partial_prefill_constraints_are_reported() -> None:
     assert "p10 must be between 1 and p09" in trace.constraint_errors
 
 
+def test_vllm_0112_rejects_concurrent_partial_prefill() -> None:
+    trace = compile_zero(base_config(), replace(environment(), engine_version="0.11.2"))
+
+    assert (
+        "p09 must equal 1 in vLLM 0.11.2 because concurrent partial prefill is unsupported"
+        in trace.constraint_errors
+    )
+
+
 def test_unsupported_parameter_and_block_size_are_reported() -> None:
     config = base_config()
     config["p05"] = 16

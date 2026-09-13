@@ -116,6 +116,13 @@ def build_report(
             lines.extend([f"TPS change against {title}: {improvement:.4f}% ({mode.value}).", ""])
     lines.extend(["## Selection And Predictions", ""])
     for selection in selections:
+        if selection.get("selection_reason"):
+            lines.extend(
+                [
+                    f"Round {selection.get('bo_round')}: {selection['selection_reason']}",
+                    "",
+                ]
+            )
         lines.extend(["```json", _json(dict(selection)), "```", ""])
     lines.extend(["## Action Reviews", ""])
     for review in reviews:
@@ -140,13 +147,13 @@ def build_report(
         [
             "## Trial Outcomes",
             "",
-            "| Trial | Type | Status | TPS | Version | Cleanup |",
-            "|---|---|---|---:|---:|---|",
+            "| Trial | Type | Status | TPS | Issued rps | Completed rps | Queue p95 | Backlog | Version | Cleanup |",
+            "|---|---|---|---:|---:|---:|---:|---|---:|---|",
         ]
     )
     for trial in history:
         lines.append(
-            f"| {trial.trial_id} | {trial.run_mode.value} | {trial.status.value} | {trial.throughput_tps} | {trial.trace.action_version} | {trial.cleanup_result.replace('|', '/')} |"
+            f"| {trial.trial_id} | {trial.run_mode.value} | {trial.status.value} | {trial.throughput_tps} | {trial.issued_request_rate_rps} | {trial.completed_request_rate_rps} | {trial.queue_backlog_p95} | {trial.backlog_detected} | {trial.trace.action_version} | {trial.cleanup_result.replace('|', '/')} |"
         )
         lines.extend(
             [
@@ -159,6 +166,16 @@ def build_report(
                         "final_config": trial.trace.final_config,
                         "coefficients": trial.trace.coefficients,
                         "effective_parameter_delta": trial.trace.effective_parameter_delta,
+                        "traffic": {
+                            "request_count": trial.request_count,
+                            "completed_requests": trial.completed_requests,
+                            "successful_requests": trial.successful_requests,
+                            "configured_request_rate_rps": trial.configured_request_rate_rps,
+                            "issued_request_rate_rps": trial.issued_request_rate_rps,
+                            "completed_request_rate_rps": trial.completed_request_rate_rps,
+                            "queue_backlog_p95": trial.queue_backlog_p95,
+                            "backlog_detected": trial.backlog_detected,
+                        },
                     }
                 ),
                 "```",
@@ -249,7 +266,13 @@ def write_report(run_dir: Path) -> Path:
             "status",
             "throughput_tps",
             "action_version",
+            "configured_request_rate_rps",
+            "issued_request_rate_rps",
+            "completed_request_rate_rps",
+            "queue_backlog_p95",
+            "backlog_detected",
             *METRIC_IDS,
+            *[f"p{number:02}" for number in range(1, 16)],
             "config_hash",
         ]
     )
@@ -261,7 +284,13 @@ def write_report(run_dir: Path) -> Path:
                 item.status.value,
                 item.throughput_tps,
                 item.trace.action_version,
+                item.configured_request_rate_rps,
+                item.issued_request_rate_rps,
+                item.completed_request_rate_rps,
+                item.queue_backlog_p95,
+                item.backlog_detected,
                 *[item.metrics[metric] for metric in METRIC_IDS],
+                *[item.trace.final_config[f"p{number:02}"] for number in range(1, 16)],
                 item.trace.config_hash,
             ]
         )

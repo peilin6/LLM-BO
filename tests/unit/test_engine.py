@@ -11,7 +11,9 @@ from dibo.engine import (
     EngineHandle,
     EngineLaunchSpec,
     build_argv,
+    cuda_visible_devices,
     detect_execution_mode,
+    engine_exit_detail,
     start,
     stop,
     wait_ready,
@@ -125,6 +127,12 @@ def test_build_argv_rejects_fake_adapter_and_unresolved_mode() -> None:
         )
 
 
+def test_cuda_visible_devices_maps_uuids_for_vllm_wsl() -> None:
+    assert cuda_visible_devices(("GPU-AAA",)) == "0"
+    assert cuda_visible_devices(("GPU-AAA", "GPU-BBB")) == "0,1"
+    assert cuda_visible_devices(("0", "1")) == "0,1"
+
+
 @pytest.mark.asyncio
 async def test_start_uses_owned_session_and_only_assigned_uuid(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -144,7 +152,7 @@ async def test_start_uses_owned_session_and_only_assigned_uuid(
 
     assert captured["argv"][2] == "/models/model with spaces"
     assert captured["kwargs"]["start_new_session"] is True
-    assert captured["kwargs"]["env"]["CUDA_VISIBLE_DEVICES"] == "GPU-TEST-UUID"
+    assert captured["kwargs"]["env"]["CUDA_VISIBLE_DEVICES"] == "0"
     assert captured["kwargs"]["env"]["VLLM_USE_V1"] == "1"
     assert handle.process is process
     handle.log_file.close()
@@ -226,6 +234,17 @@ async def test_stop_is_idempotent_and_signals_only_owned_group(
 
 def test_detect_execution_mode_requires_unambiguous_evidence() -> None:
     assert detect_execution_mode("vLLM V1 engine core initialization") == "V1"
+    assert detect_execution_mode("Initializing a V1 LLM engine (v0.11.2)") == "V1"
     assert detect_execution_mode("legacy LLM engine uses vLLM V0") == "V0"
     assert detect_execution_mode("no mode evidence") is None
     assert detect_execution_mode("vLLM V0 then vLLM V1") is None
+
+
+def test_engine_exit_detail_uses_final_log_line(tmp_path: Path) -> None:
+    path = tmp_path / "engine.log"
+    path.write_text(
+        "info\nAssertionError: root cause\nRuntimeError: Engine core initialization failed\n",
+        encoding="utf-8",
+    )
+
+    assert engine_exit_detail(path) == "AssertionError: root cause"

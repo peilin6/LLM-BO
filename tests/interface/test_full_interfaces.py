@@ -22,7 +22,9 @@ def test_cli_tune_compile_review_report_interoperate_without_resources(tmp_path)
     }
     tuned = runner.invoke(app, ["tune", "--config", str(config_file)], obj=injected)
     assert tuned.exit_code == 0, tuned.exception
-    run_dir = tmp_path / "runs" / "cli_integrated"
+    run_dirs = list((tmp_path / "runs").glob("cli_integrated_20*"))
+    assert len(run_dirs) == 1
+    run_dir = run_dirs[0]
     results_before = list(run_dir.glob("trials/*/result.json"))
     assert len(results_before) == 14
     record = json.loads((run_dir / "selections/round_001.json").read_text())

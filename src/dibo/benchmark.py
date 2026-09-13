@@ -38,6 +38,10 @@ class BenchmarkResult:
     ttft_p95_s: float | None
     success_rate: float
     request_results: tuple[dict[str, Any], ...]
+    configured_request_rate_rps: float | None = None
+    issued_request_rate_rps: float | None = None
+    completed_request_rate_rps: float | None = None
+    launch_span_s: float | None = None
 
 
 def load_requests(path: Path) -> tuple[dict[str, Any], ...]:
@@ -179,7 +183,19 @@ class VLLMHttpBenchmark:
             results = await asyncio.gather(
                 *(scheduled(index, row) for index, row in enumerate(selected))
             )
-        return {"duration_s": time.perf_counter() - started, "requests": results}
+        duration_s = time.perf_counter() - started
+        launch_span_s = float(launch_offsets[-1]) if len(launch_offsets) else 0.0
+        return {
+            "duration_s": duration_s,
+            "requests": results,
+            "configured_request_rate_rps": workload.request_rate,
+            "issued_request_rate_rps": (
+                count / launch_span_s if launch_span_s > 0 else float(count) / duration_s
+            ),
+            "launch_span_s": launch_span_s,
+            "max_concurrency": workload.max_concurrency,
+            "burstiness": workload.burstiness,
+        }
 
 
 def aggregate_measurement(payload: dict[str, Any]) -> BenchmarkResult:
@@ -206,6 +222,10 @@ def aggregate_measurement(payload: dict[str, Any]) -> BenchmarkResult:
 
     total = len(requests)
     completed_count = len(completed)
+    completed_request_rate_rps = completed_count / float(duration_s)
+    configured_request_rate = payload.get("configured_request_rate_rps")
+    issued_request_rate = payload.get("issued_request_rate_rps")
+    launch_span = payload.get("launch_span_s")
     return BenchmarkResult(
         total_requests=total,
         completed_requests=completed_count,
@@ -216,6 +236,22 @@ def aggregate_measurement(payload: dict[str, Any]) -> BenchmarkResult:
         ttft_p95_s=(float(np.quantile(ttft_values, 0.95, method="linear")) if ttft_values else None),
         success_rate=completed_count / total,
         request_results=tuple(dict(item) for item in requests),
+        configured_request_rate_rps=(
+            float(configured_request_rate)
+            if isinstance(configured_request_rate, (int, float)) and isfinite(configured_request_rate)
+            else None
+        ),
+        issued_request_rate_rps=(
+            float(issued_request_rate)
+            if isinstance(issued_request_rate, (int, float)) and isfinite(issued_request_rate)
+            else None
+        ),
+        completed_request_rate_rps=completed_request_rate_rps,
+        launch_span_s=(
+            float(launch_span)
+            if isinstance(launch_span, (int, float)) and isfinite(launch_span)
+            else None
+        ),
     )
 
 

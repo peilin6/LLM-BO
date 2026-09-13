@@ -42,7 +42,9 @@ def test_initial_cli_uses_fake_and_report_is_offline(tmp_path) -> None:
     )
     assert result.exit_code == 0, result.exception
     assert json.loads(result.stdout)["attempted_trials"] == 10
-    run = tmp_path / "dibo_cpu_smoke"
+    run_dirs = list(tmp_path.glob("dibo_cpu_smoke_20*"))
+    assert len(run_dirs) == 1
+    run = run_dirs[0]
     assert runner.invoke(app, ["report", "--run", str(run)]).exit_code == 0
     assert "synthetic" in (run / "report.md").read_text()
     repeated = runner.invoke(
@@ -50,7 +52,8 @@ def test_initial_cli_uses_fake_and_report_is_offline(tmp_path) -> None:
         ["initial-run", "--config", str(CONFIGS / "experiment_smoke.yaml")],
         obj={"run_root": tmp_path},
     )
-    assert repeated.exit_code == 1
+    assert repeated.exit_code == 0, repeated.exception
+    assert len(list(tmp_path.glob("dibo_cpu_smoke_20*"))) == 2
 
 
 def test_cli_refuses_real_execution_and_missing_inputs(tmp_path) -> None:

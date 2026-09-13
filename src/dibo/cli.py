@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import replace
+from datetime import datetime
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from pathlib import Path
@@ -43,6 +45,12 @@ def main(
 def _failure(error: Exception) -> None:
     typer.echo(f"Error: {error}", err=True)
     raise typer.Exit(code=1)
+
+
+def _timestamped_run_dir(run_dir: Path) -> Path:
+    """Create a human-sortable, collision-resistant directory name for one invocation."""
+    timestamp = datetime.now().astimezone().strftime("%Y%m%dT%H%M%S_%f")
+    return run_dir.parent / f"{run_dir.name}_{timestamp}"
 
 
 @app.command("env-check")
@@ -93,6 +101,7 @@ def _run(ctx: typer.Context, config: Path, initial_only: bool, *, disable_llm: b
     overrides = ctx.obj or {}
     try:
         settings = load_controller_config(config, run_root=Path(overrides.get("run_root", "runs")))
+        settings = replace(settings, run_dir=_timestamped_run_dir(settings.run_dir))
         reviewer = overrides.get("reviewer")
         if reviewer is None and settings.experiment.run_mode == RunMode.REAL and not disable_llm:
             reviewer = FileRoundtripReviewer(

@@ -211,7 +211,7 @@ class TuningSpec(StrictModel):
     metric_top_k_max: int = Field(ge=1, le=3)
     third_metric_ratio: float = Field(gt=0, le=1)
     bo_rounds: int = Field(ge=0)
-    trials_per_bo_round: int = Field(ge=1, le=3)
+    trials_per_bo_round: int = Field(ge=1, le=5)
     max_total_trials: int = Field(gt=0)
     coefficient_low: float = Field(ge=-1, le=1)
     coefficient_high: float = Field(ge=-1, le=1)
@@ -249,7 +249,7 @@ class LlmSpec(StrictModel):
     transport: LlmTransport
     model: str
     api_key_env: str
-    llm_update_interval_trials: int = Field(ge=1, le=3)
+    llm_update_interval_trials: int = Field(ge=1, le=5)
     timeout_s: int = Field(gt=0)
     max_weight_change: float = Field(gt=0, le=1)
     anchor_min_abs: float = Field(ge=0, le=1)
@@ -400,6 +400,11 @@ class TrialResult(StrictModel):
     request_count: int = Field(ge=0)
     completed_requests: int = Field(ge=0)
     successful_requests: int = Field(ge=0)
+    configured_request_rate_rps: float | None = Field(default=None, gt=0)
+    issued_request_rate_rps: float | None = Field(default=None, ge=0)
+    completed_request_rate_rps: float | None = Field(default=None, ge=0)
+    queue_backlog_p95: float | None = Field(default=None, ge=0)
+    backlog_detected: bool = False
     duration_s: float | None = Field(default=None, gt=0)
     sampling_interval_s: float | None = Field(default=None, gt=0)
     valid_sample_counts: dict[str, int]

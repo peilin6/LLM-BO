@@ -81,6 +81,29 @@ def _spec_payload(spec: TrialSpec) -> dict[str, Any]:
     }
 
 
+def _benchmark_observability(
+    benchmark_result: BenchmarkResult,
+    queue_backlog_p95: float | None,
+) -> dict[str, Any]:
+    configured_rate = benchmark_result.configured_request_rate_rps
+    issued_rate = benchmark_result.issued_request_rate_rps
+    completed_rate = benchmark_result.completed_request_rate_rps
+    backlog_detected = queue_backlog_p95 is not None and queue_backlog_p95 > 0
+    return {
+        "total_requests": benchmark_result.total_requests,
+        "completed_requests": benchmark_result.completed_requests,
+        "failed_requests": benchmark_result.failed_requests,
+        "success_rate": benchmark_result.success_rate,
+        "configured_request_rate_rps": configured_rate,
+        "issued_request_rate_rps": issued_rate,
+        "completed_request_rate_rps": completed_rate,
+        "launch_span_s": benchmark_result.launch_span_s,
+        "duration_s": benchmark_result.duration_s,
+        "queue_backlog_p95": queue_backlog_p95,
+        "backlog_detected": backlog_detected,
+    }
+
+
 async def run_trial(
     spec: TrialSpec,
     engine: EngineBoundary,
@@ -137,16 +160,27 @@ async def run_trial(
             benchmark.run_measurement(handle, spec.workload),
             timeout=spec.benchmark_timeout_s,
         )
-        emit_event(spec.run_dir, "benchmark_completed", trial_id=spec.trace.trial_id,
-               throughput_tps=benchmark_result.throughput_tps,
-               completed_requests=benchmark_result.completed_requests)
+        emit_event(
+            spec.run_dir,
+            "benchmark_completed",
+            trial_id=spec.trace.trial_id,
+            throughput_tps=benchmark_result.throughput_tps,
+            **_benchmark_observability(benchmark_result, None),
+        )
         metrics_result = metrics.stop_and_aggregate(
             sampler,
             benchmark_result.completed_requests,
             ttft_p95_s=benchmark_result.ttft_p95_s,
         )
-        emit_event(spec.run_dir, "metrics_aggregated", trial_id=spec.trace.trial_id,
-               metrics={key: value.value for key, value in metrics_result.values.items()})
+        queue_backlog_p95 = metrics_result.values["m04"].value
+        emit_event(
+            spec.run_dir,
+            "metrics_aggregated",
+            trial_id=spec.trace.trial_id,
+            metrics={key: value.value for key, value in metrics_result.values.items()},
+            queue_backlog_p95=queue_backlog_p95,
+            backlog_detected=queue_backlog_p95 is not None and queue_backlog_p95 > 0,
+        )
         sampler = None
         if benchmark_result.completed_requests == 0:
             raise RuntimeError("formal benchmark completed no requests")
@@ -218,6 +252,10 @@ async def run_trial(
                 "throughput_tps": benchmark_result.throughput_tps,
                 "ttft_p95_s": benchmark_result.ttft_p95_s,
                 "success_rate": benchmark_result.success_rate,
+                "configured_request_rate_rps": benchmark_result.configured_request_rate_rps,
+                "issued_request_rate_rps": benchmark_result.issued_request_rate_rps,
+                "completed_request_rate_rps": benchmark_result.completed_request_rate_rps,
+                "launch_span_s": benchmark_result.launch_span_s,
                 "requests": benchmark_result.request_results,
             },
         )
@@ -245,6 +283,15 @@ async def run_trial(
         request_count=(benchmark_result.total_requests if benchmark_result else 0),
         completed_requests=(benchmark_result.completed_requests if benchmark_result else 0),
         successful_requests=(benchmark_result.completed_requests if benchmark_result else 0),
+        configured_request_rate_rps=(
+            benchmark_result.configured_request_rate_rps if benchmark_result else None
+        ),
+        issued_request_rate_rps=(benchmark_result.issued_request_rate_rps if benchmark_result else None),
+        completed_request_rate_rps=(
+            benchmark_result.completed_request_rate_rps if benchmark_result else None
+        ),
+        queue_backlog_p95=metric_values["m04"],
+        backlog_detected=metric_values["m04"] is not None and metric_values["m04"] > 0,
         duration_s=(benchmark_result.duration_s if benchmark_result else None),
         sampling_interval_s=spec.sampling_interval_s,
         valid_sample_counts=valid_sample_counts,

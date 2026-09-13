@@ -149,6 +149,8 @@ def load_controller_config(path: Path, *, run_root: Path = Path("runs")) -> Cont
         (8, 16, 32),
         model_context=experiment.engine.model,
         workload_context=experiment.workload.request_sha256,
+        execution_mode=experiment.engine.execution_mode,
+        engine_version=experiment.engine.version,
     )
     if Path(
         experiment.experiment_id
@@ -287,6 +289,29 @@ def _append_event(run_dir: Path, event: Mapping[str, Any]) -> None:
     emit_event(run_dir, str(payload.pop("event")), **payload)
 
 
+def _selection_reason(selection: Any, reference: TrialResult) -> str:
+    metrics = ", ".join(selection.selected_metrics)
+    if selection.mode == "hard_threshold":
+        return (
+            f"selected {metrics} because the reference trial {reference.trial_id} "
+            "violated configured hard thresholds; scores are normalized threshold gaps"
+        )
+    if selection.mode == "g_counterfactual":
+        return (
+            f"selected {metrics} because one-at-a-time G-model counterfactuals predicted "
+            "a positive lower-confidence TPS improvement over the reference metrics"
+        )
+    if selection.mode == "uncertainty":
+        return (
+            f"selected {metrics} because hard thresholds and G counterfactuals were inactive, "
+            "so F-model posterior uncertainty at z=0 drove exploration"
+        )
+    return (
+        f"selected {metrics} by deterministic rotation because neither thresholds, "
+        "G counterfactuals, nor ready F-model uncertainties were available"
+    )
+
+
 async def run_experiment(
     config: ControllerConfig,
     *,
@@ -352,6 +377,10 @@ async def run_experiment(
             "event": "trial_started", "trial_id": trace.trial_id,
             "phase": trace.phase, "bo_round": trace.bo_round,
             "action_version": trace.action_version, "config_hash": trace.config_hash,
+            "selected_metrics": trace.selected_metrics,
+            "selected_actions": trace.selected_actions,
+            "coefficients": trace.coefficients,
+            "final_config": trace.final_config,
         })
         summary.attempted_trials += 1
         result = await trial_runner(
@@ -377,6 +406,7 @@ async def run_experiment(
                 "Runner returned a different run type, Trial identity, or configuration"
             )
         summary.history.append(result)
+        backlog_basis = "m04 queue_length p95 from vLLM Prometheus samples"
         _append_event(config.run_dir, {
             "event": "trial_completed", "trial_id": result.trial_id,
             "status": result.status.value, "action_version": result.trace.action_version,
@@ -384,6 +414,15 @@ async def run_experiment(
             "selected_actions": result.trace.selected_actions,
             "config_hash": result.trace.config_hash, "metrics": result.metrics,
             "throughput_tps": result.throughput_tps, "cleanup_result": result.cleanup_result,
+            "request_count": result.request_count,
+            "completed_requests": result.completed_requests,
+            "successful_requests": result.successful_requests,
+            "configured_request_rate_rps": result.configured_request_rate_rps,
+            "issued_request_rate_rps": result.issued_request_rate_rps,
+            "completed_request_rate_rps": result.completed_request_rate_rps,
+            "queue_backlog_p95": result.queue_backlog_p95,
+            "backlog_detected": result.backlog_detected,
+            "backlog_basis": backlog_basis,
         })
         if "cleanup_failed" in result.cleanup_result:
             summary.stop_reason = "cleanup_failed"
@@ -513,20 +552,33 @@ async def run_experiment(
             ),
         )
         selected_actions = union_neighbor_actions(selection.selected_metrics, config.graph)
+        selection_reason = _selection_reason(selection, reference)
         _append_event(config.run_dir, {
             "event": "round_selected", "bo_round": bo_round,
             "action_version": current_bundle.action_version,
             "reference_trial_id": selection.reference_trial_id,
+            "reference_throughput_tps": reference.throughput_tps,
+            "reference_metrics": reference.metrics,
             "mode": selection.mode, "selected_metrics": selection.selected_metrics,
             "selected_actions": selected_actions, "targets": {
                 metric: target.model_dump(mode="json") for metric, target in selection.targets.items()
-            }, "weights": selection.weights,
+            }, "scores": selection.scores,
+            "weights": selection.weights,
+            "credible_ranges": selection.credible_ranges,
+            "g_posterior": selection.g_posterior,
+            "selection_reason": selection_reason,
         })
         record = {
             "bo_round": bo_round,
             "action_version": current_bundle.action_version,
             "base_trial_id": summary.base_trial.trial_id,
             "selection": selection.model_dump(mode="json"),
+            "selection_reason": selection_reason,
+            "reference": {
+                "trial_id": reference.trial_id,
+                "throughput_tps": reference.throughput_tps,
+                "metrics": reference.metrics,
+            },
             "selected_actions": selected_actions,
             "suggestions": [],
             "models": {},
@@ -563,6 +615,17 @@ async def run_experiment(
                 break
             _append_event(config.run_dir, {"event": "bo_candidate_selected", "bo_round": bo_round,
                 "source": suggestion.source, "acquisition_value": suggestion.acquisition_value,
+                "selected_metrics": selection.selected_metrics,
+                "selected_actions": selected_actions,
+                "coefficients": suggestion.coefficients,
+                "requested_z": suggestion.predictions["requested_z"],
+                "predicted_loss": suggestion.predictions["predicted_loss"],
+                "predicted_tps": suggestion.predictions["predicted_tps"],
+                "f_mean": suggestion.predictions["f_mean"],
+                "f_variance": suggestion.predictions["f_variance"],
+                "candidate_count": suggestion.predictions["candidate_count"],
+                "invalid_count": suggestion.predictions["invalid_count"],
+                "duplicate_count": suggestion.predictions["duplicate_count"],
                 "config_hash": suggestion.predictions["final_config_hash"]})
             trace = compile_config(
                 summary.base_trial.trace.final_config,

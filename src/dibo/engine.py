@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import signal
 import time
 from collections.abc import Awaitable, Callable, Mapping
@@ -99,6 +100,17 @@ def build_argv(config: EngineSpec, final_config: Mapping[str, Any]) -> list[str]
     return argv
 
 
+def cuda_visible_devices(configured_devices: tuple[str, ...]) -> str:
+    """Return a vLLM-compatible CUDA_VISIBLE_DEVICES value.
+
+    NVML metrics keep using the configured GPU UUIDs, but vLLM 0.11.x on WSL
+    expects CUDA visible device ids to parse as integer ordinals.
+    """
+    if all(device.startswith("GPU-") for device in configured_devices):
+        return ",".join(str(index) for index, _ in enumerate(configured_devices))
+    return ",".join(configured_devices)
+
+
 async def start(config: EngineLaunchSpec, run_dir: Path) -> EngineHandle:
     """Start one owned vLLM process without invoking a shell."""
     engine = config.engine
@@ -107,7 +119,7 @@ async def start(config: EngineLaunchSpec, run_dir: Path) -> EngineHandle:
     log_path = run_dir / "engine.log"
     log_file = log_path.open("w", encoding="utf-8")
     environment = os.environ.copy()
-    environment["CUDA_VISIBLE_DEVICES"] = ",".join(engine.allocated_gpu_uuids)
+    environment["CUDA_VISIBLE_DEVICES"] = cuda_visible_devices(engine.allocated_gpu_uuids)
     environment["VLLM_USE_V1"] = "1" if engine.execution_mode == "V1" else "0"
     try:
         process = await asyncio.create_subprocess_exec(
@@ -133,11 +145,38 @@ async def start(config: EngineLaunchSpec, run_dir: Path) -> EngineHandle:
 def detect_execution_mode(log_text: str) -> str | None:
     """Extract explicit V0/V1 evidence without guessing from package version."""
     normalized = log_text.lower()
-    has_v1 = "vllm v1" in normalized or "engine core initialization" in normalized
+    has_v1 = (
+        "vllm v1" in normalized
+        or "engine core initialization" in normalized
+        or "initializing a v1 llm engine" in normalized
+    )
     has_v0 = "vllm v0" in normalized or "legacy llm engine" in normalized
     if has_v1 == has_v0:
         return None
     return "V1" if has_v1 else "V0"
+
+
+def engine_exit_detail(log_path: Path) -> str | None:
+    """Return the final meaningful vLLM log line for a startup failure event."""
+    if not log_path.exists():
+        return None
+    ansi_escape = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+    lines = [
+        ansi_escape.sub("", line).strip()
+        for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    ]
+    for line in reversed(lines):
+        normalized = line.lower()
+        if (
+            (
+                "valueerror:" in normalized
+                or "notimplementederror:" in normalized
+                or "assertionerror:" in normalized
+            )
+            and "engine core initialization failed" not in normalized
+        ):
+            return line
+    return next((line for line in reversed(lines) if line), None)
 
 
 async def _default_get(url: str) -> httpx.Response:
@@ -158,7 +197,11 @@ async def wait_ready(
     last_error = "engine did not become ready"
     while time.monotonic() < deadline:
         if handle.process.returncode is not None:
-            raise RuntimeError(f"vLLM exited before readiness with code {handle.process.returncode}")
+            detail = engine_exit_detail(handle.log_path)
+            suffix = f": {detail}" if detail else ""
+            raise RuntimeError(
+                f"vLLM exited before readiness with code {handle.process.returncode}{suffix}"
+            )
         try:
             health = await get(f"{base_url}/health")
             if health.status_code == 200:
